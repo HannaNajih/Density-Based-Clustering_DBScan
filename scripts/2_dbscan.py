@@ -1,31 +1,37 @@
+# Import libraries
 import pandas as pd
-import matplotlib.pyplot as plt
+import numpy as np
 from sklearn.cluster import DBSCAN
 from sklearn.neighbors import NearestNeighbors
-import numpy as np
+import matplotlib.pyplot as plt
 
-# Load data
-df = pd.read_csv('data/processed/cleaned_data.csv')
-X = df.select_dtypes(include=['float64'])
+def load_data():
+    df = pd.read_excel('data/BusinessDS.xlsx')
+    return df
 
-# Find optimal eps (Elbow Method)
-nn = NearestNeighbors(n_neighbors=2).fit(X)
-distances, _ = nn.kneighbors(X)
-distances = np.sort(distances[:, 1], axis=0)
+def preprocess(df):
+    numeric_cols = df.select_dtypes(include=['float64', 'int64']).columns
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(df[numeric_cols])
+    return X_scaled
 
-plt.plot(distances)
-plt.title('K-Distance Graph for Eps Selection')
-plt.savefig('results/plots/k_distance.png')
-plt.close()
+def find_optimal_eps(X_scaled, k=4):
+    nn = NearestNeighbors(n_neighbors=k).fit(X_scaled)
+    distances, _ = nn.kneighbors(X_scaled)
+    distances = np.sort(distances[:, -1])
+    plt.plot(distances)
+    plt.savefig('outputs/plots/k_distance_graph.png')
+    plt.close()
 
-# Run DBSCAN (adjust eps/min_samples)
-dbscan = DBSCAN(eps=0.5, min_samples=5)
-df['cluster'] = dbscan.fit_predict(X)
+def run_dbscan(X_scaled, eps=0.3, min_samples=5):
+    dbscan = DBSCAN(eps=eps, min_samples=min_samples)
+    clusters = dbscan.fit_predict(X_scaled)
+    pd.Series(clusters).to_csv('outputs/clusters/dbscan_labels.csv', index=False)
+    return clusters
 
-# Save results
-df.to_csv('results/clusters/dbscan_results.csv', index=False)
-
-# Visualize
-plt.scatter(X.iloc[:, 0], X.iloc[:, 1], c=df['cluster'])
-plt.title('DBSCAN Clustering')
-plt.savefig('results/plots/dbscan_clusters.png')
+if __name__ == "__main__":
+    df = load_data()
+    X_scaled = preprocess(df)
+    find_optimal_eps(X_scaled)
+    clusters = run_dbscan(X_scaled)
+    print(f"Clusters: {len(set(clusters))}, Noise: {list(clusters).count(-1)}")
